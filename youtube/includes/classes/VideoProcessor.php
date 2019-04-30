@@ -1,6 +1,5 @@
 <?php
 class VideoProcessor {
-
 	private $con;
 	private $sizeLimit = 500000000;
 	private $allowedTypes = array("mp4", "flv", "webm", "vob", "ogv", "ogg", "avi", "wmv", "mov", "mpeg", "mpg");
@@ -47,6 +46,8 @@ class VideoProcessor {
 				echo "Upload failed, could not generate thumbnails!";
 				return false;
 			}
+
+			return true;
 		}
 	}
 
@@ -135,6 +136,39 @@ class VideoProcessor {
 		$videoId = $this->con->lastInsertId();
 
 		$this->updateDuration($duration, $videoId);
+
+		for($num = 1; $num <= $numThumnails; $num++) {
+			$imageName = uniqid() . ".jpg";
+			$interval = ($duration*0.8) / $numThumnails * $num;
+			$fullThumbnailsPath = "$pathToThumbnail/$videoId-$imageName";
+
+			$cmd = "$this->ffmpegPath -i $filePath -ss $interval -s $thumbnailSize -vframes 1 $fullThumbnailsPath 2>&1";
+
+			$outputLog = array();
+			exec($cmd, $outputLog, $returnCode);
+
+			if($returnCode != 0) {
+				//command failed
+				foreach ($outputLog as $line) {
+					echo $line . "<br>";
+				}
+			}
+			$query = $this->con->prepare("INSERT INTO thumbnails(video_Id, filePath, selected)
+										VALUES(:video_Id, :filePath, :selected)");
+			$query->bindParam(":video_Id", $videoId);
+			$query->bindParam(":filePath", $fullThumbnailsPath);
+			$query->bindParam(":selected", $selected);
+
+			$selected = $num == 1 ? 1 : 0;
+
+			$success = $query->execute();
+
+			if(!$success) {
+				echo "Error inserting thumbnail\n";
+				return false;
+			}
+		}
+		return true;
 	}
 
 	public function getVideoDuration($filePath) {

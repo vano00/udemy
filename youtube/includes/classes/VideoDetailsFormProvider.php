@@ -1,6 +1,5 @@
 <?php
 	class VideoDetailsFormProvider {
-
 		private $con;
 
 		public function __construct($con) {
